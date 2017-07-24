@@ -1,0 +1,21 @@
+{
+    "name": "zine/menu",
+    "description": "menu for laravel",
+    "type": "library",
+    "require": {
+        "php": ">=5.6.4"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "H",
+            "email": "21418592@qq.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Zine\\Menu\\": "src/"
+        }
+    }
+}
