@@ -23,8 +23,9 @@ public function handle( Menu $menu) {
         	    });
     return $menu;
 }
-```
-```php
+
+//----OR----
+
 use Zine\Menu\Menu;
  
 Event::listen('menuCreate',function(Menu $menu){
