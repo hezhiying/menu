@@ -1,7 +1,7 @@
 # menu
 menu library for laravel-php, simple yet powerful !
 
-##创建菜单
+## 创建菜单
 
 ```php
 //添加监听
@@ -34,7 +34,7 @@ Event::listen('menuCreate',function(Menu $menu){
 });
 ```
 
-##快速开始
+## 快速开始
 
 ```php
 //返回的是菜单集合 Collection类型
