@@ -21,8 +21,8 @@ trait RenderTrait {
 			/** @var \Zine\Menu\Menu $item */
 			
 			$items .= '<' . $item_tag . $this->menuClass() . '>';
-			if ($item->items['link']) {
-				$items .= '<a' . $item->menuClass() . ' href="' . $item->items['link'] . '">' . $item->items['title'] . '</a>';
+			if ($item->items['url']) {
+				$items .= '<a' . $item->menuClass() . ' href="' . $item->items['url'] . '">' . $item->items['title'] . '</a>';
 			} else {
 				$items .= $item->items['title'];
 			}
@@ -55,12 +55,33 @@ trait RenderTrait {
 		return '<ul' . self::attributes($attributes) . '>' . $this->render('ul',  $childrenAttributes) . '</ul>';
 	}
 
+	public function dropdown($attributes = []) {
+		$button = sprintf('<button class="btn btn-default dropdown-toggle" type="button" id="%s" data-toggle="dropdown">%s<span class="caret"></span></button>',$this->id,$this->title);
+		$ul = sprintf('<ul class="dropdown-menu" role="menu" aria-labelledby="%s">',$this->id);
+		foreach ($this->items['child'] as $menu){
+			/** @var \Zine\Menu\Menu $menu */
+			$ul .= '<li role="presentation">';
+			if ($menu->items['url']) {
+				$ul .= '<a' . $menu->menuClass() . ' href="' . $menu->items['url'] . '" role="menuitem" tabindex="-1">' . $menu->items['title'] . '</a>';
+			} else {
+				$ul .= $menu->items['title'];
+			}
+			$ul .= '</li>';
+			if($menu->items['divider']) {
+				$ul .= '<li role="presentation"' . $menu->dividerClass() . '></li>';
+			}
+		}
+		$ul .= '</ul>';
+
+		return '<div class="dropdown">'.$button.$ul.'</div>';
+	}
+
 	public function menuClass(){
-		return self::attributes(array_except($this->items, $this->reserved));
+		return self::attributes(array_except($this->items, $this->attrExcept));
 	}
 	
 	public function dividerClass(){
-		return ' class="'.$this->items['divider'].'"';
+		return ' class="'.trim($this->items['divider']).'"';
 	}
 	/**
 	 * Build an HTML attribute string from an array.

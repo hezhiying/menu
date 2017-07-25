@@ -7,90 +7,48 @@ use Illuminate\Support\Collection;
 class Menu extends Collection {
 	use GenerateUrlTrait, RenderTrait;
 
-	protected $items             = [
+	protected $items = [
 		'id'        => '',
 		'title'     => '',
 		'icon'      => '',
-		'link'      => '',
+		'url'       => '',
 		'level'     => 0,
 		'divider'   => '',
 		'class'     => '',
 		'pos'       => 9999,
-		'attribute' => [],
 		'child'     => [],
 	];
-	protected $reserved = [
-		'title',
-		'link',
-		'attribute',
-		'level',
-		'icon',
-		'route',
-		'action',
-		'url',
-		'prefix',
-		'root',
-		'parent',
-		'secure',
-		'raw',
-		'child',
-		'divider',
-		'pos'
-	];
+	/**
+	 * @var array $except 排除的字段
+	 */
+	protected $except     = ['route', 'action', 'url', 'child', 'divider'];
+	protected $attrExcept = ['icon', 'url', 'level', 'divider', 'pos', 'attribute', 'child'];
 	public    $root;
 	public    $parent;
 
-	public function __construct($title = '/', $options = '', $root = null, $parent = null) {
+	function __get($name) {
+		if (array_key_exists($name, $this->items)) {
+			return $this->items[ $name ];
+		}
+
+		return Parent::__get($name);
+	}
+
+	/**
+	 * Menu constructor.
+	 *
+	 * @param string $title
+	 * @param null   $root
+	 * @param null   $parent
+	 */
+	public function __construct($title = '/', $root = null, $parent = null) {
 		Parent::__construct($this->items);
 		$this->root   = $root ? $root : $this;
 		$this->parent = $parent ? $parent : $this;
 		$this->put('title', $title);
 		$this->put('child', new Collection());
-		$this->put('level', $this->parent->get('level') + 1);
+		$this->put('level', $this->parent->items['level'] + 1);
 		$this->put('id', $this->id());
-		$this->update($options);
-	}
-
-	public function update($options) {
-		if (!$options) {
-			return $this;
-		}
-		if (is_array($options) && $options) {
-			foreach ($options as $attName => $attValue) {
-				$this->items[ $attName ] = $attValue;
-			}
-		}
-		if (is_array($options) && array_has($options,'divider')) {
-			$this->divide($options['divider']);
-		}
-
-		$this->items['link'] = $this->dispatch($options) ?: $this->items['link'];
-//		if (is_array($options) && $options) {
-//			$this->saveAttribute(array_except($options, $this->reserved));
-//		}
-
-		return $this;
-	}
-
-	/**
-	 * 获取单个子菜单，不存在则先创建
-	 *
-	 * @param              $title
-	 * @param string|array $options
-	 *
-	 * @return self
-	 */
-	protected function getSingleMenu($title, $options = '') {
-		foreach ($this->items['child'] as $item) {
-			if ($item->items['title'] == $title) {
-				return $item;
-			}
-		}
-
-		$menu = new self($title, $options, $this->root, $this);
-
-		return $this->items['child']->push($menu)->last();
-
 	}
 
 	/**
@@ -108,35 +66,111 @@ class Menu extends Collection {
 		$titles = explode("/", $paths);
 		$menu   = $this;
 		foreach ($titles as $title) {
-			if ($title) {
-				$menu = $menu->getSingleMenu($title);
-			}
+			$menu = $menu->findOrCreateMenu($title);
 		}
 
 		if ($options instanceof \Closure) {
 			call_user_func($options, $menu);
-		} elseif (!is_null($options)) {
-			$menu->update($options);
+		} elseif (is_string($options)) {
+			$this->items['url'] = $options;
+		} elseif (is_array($options) && $options) {
+			foreach (array_except($options, $this->except) as $attName => $attValue) {
+				$this->items[ $attName ] = $attValue;
+			}
+			//分隔线
+			if (array_key_exists('divider', $options)) {
+				$this->divide($options['divider']);
+			}
+			//链接
+			foreach (['route', 'action', 'url'] as $key) {
+				if (array_key_exists($key, $options)) {
+					$this->items['url'] = $this->dispatch($options);
+				}
+			}
 		}
 
 		return $menu;
 	}
 
 	/**
-	 * 保存菜单属性
+	 * 查找菜单
 	 *
-	 * @param string|array $name
-	 * @param null         $val
+	 * @param string $menuPath 菜单路径
+	 *
+	 * @return $this|\Zine\Menu\Menu
+	 * @throws \Zine\Menu\MenuNotFoundException
 	 */
-	public function saveAttribute($name = null, $val = null) {
-
-		if (is_array($name)) {
-			foreach ($name as $attName => $attValue) {
-				$this->saveAttribute($attName, $attValue);
-			}
-		} elseif ($name) {
-			$this->items['attribute'][ $name ] = $val;
+	public function find($menuPath) {
+		if (!$menuPath) {
+			return $this;
 		}
+
+		$titles = explode("/", $menuPath);
+		$title  = array_shift($titles);
+		foreach ($this->items['child'] as $menu) {
+			/** @var self $menu */
+			if ($menu->items['title'] == $title) {
+				return $menu->find(implode($titles, '/'));
+			}
+		}
+		throw new MenuNotFoundException($this->getMenuPath($title));
+	}
+
+	/**
+	 * 返回子菜单集合
+	 * @return mixed
+	 */
+	public function getChild(){
+		return $this->items['child'];
+	}
+
+	/**
+	 * 从当前向上返回菜单路径
+	 *
+	 * @param $path
+	 *
+	 * @return mixed
+	 */
+	public function getMenuPath($path = '') {
+		if ($this->items['title'] != '/') {
+			return $this->parent->getMenuPath($this->items['title'] . '/' . $path);
+		}
+
+		return rtrim($path, '/');
+	}
+
+	/**
+	 * 查找或创建菜单
+	 *
+	 * @param              $title
+	 *
+	 * @return self
+	 */
+	protected function findOrCreateMenu($title) {
+		foreach ($this->items['child'] as $item) {
+			if ($item->items['title'] == $title) {
+				return $item;
+			}
+		}
+
+		$menu = new self($title, $this->root, $this);
+
+		return $this->items['child']->push($menu)->last();
+
+	}
+
+	/**
+	 * 设置菜单属性
+	 *
+	 * @param string $name
+	 * @param string $val
+	 *
+	 * @return $this
+	 */
+	public function data($name, $val) {
+		$this->items[ $name ] = $val;
+
+		return $this;
 	}
 
 	/**
@@ -150,10 +184,11 @@ class Menu extends Collection {
 	 * @return static
 	 */
 	public function sortBy($field, $options = SORT_REGULAR, $descending = false) {
-		if ($this->items['child'] && $this->items['child'] instanceof BaseCollection) {
+		if ($this->items['child'] ) {
 			$this->items['child'] = $this->items['child']->sortBy($field, $options, $descending)->values();
 		}
 		foreach ($this->items['child'] as $menu) {
+			/** @var self $menu */
 			$menu->sortBy($field, $options, $descending);
 		}
 
@@ -171,7 +206,7 @@ class Menu extends Collection {
 	 *
 	 * @return self
 	 */
-	public function fireMenuEvent($type = '') {
+	public function fireMenuEvent($type = 'default') {
 		$eventName = camel_case($type . 'MenuCreate');
 		$menus     = event($eventName, [new self()]);
 		foreach ($menus as $menu) {
@@ -188,7 +223,7 @@ class Menu extends Collection {
 	 * @return bool
 	 */
 	public function hasChildren() {
-		return $this->get('child')->count() > 0;
+		return $this->items['child']->count() > 0;
 	}
 
 	/**
@@ -198,8 +233,8 @@ class Menu extends Collection {
 	 *
 	 * @return void
 	 */
-	public function divide( $attributes = '') {
-		$classes             = $attributes . ' divider';
+	public function divide($attributes = '') {
+		$classes                = $attributes . ' divider';
 		$this->items['divider'] = implode(' ', array_unique(explode(' ', $classes)));
 	}
 
