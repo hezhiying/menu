@@ -2,6 +2,7 @@
 menu library for laravel-php, simple yet powerful !
 
 ##创建菜单
+
 ```php
 //添加监听
 protected $listen = [
@@ -32,6 +33,7 @@ Event::listen('menuCreate',function(Menu $menu){
 			 return $menu;
 });
 ```
+
 ##快速开始
 
 ```php
